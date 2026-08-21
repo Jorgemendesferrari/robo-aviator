@@ -1,4 +1,4 @@
-import os
+
 import requests
 import threading
 import time
@@ -54,7 +54,6 @@ def monitorizar_dados_reais():
             time.sleep(3)
         except Exception:
             time.sleep(5)
-
 
 @app.route('/api/sinal', methods=['GET'])
 def obter_sinal():
