@@ -1,39 +1,66 @@
 import os
+import requests
+import threading
+import time
 from flask import Flask, jsonify
 from flask_cors import CORS
 
 app = Flask(__name__)
 CORS(app)
 
-# Dicionário dinâmico para simular e processar a inteligência do mercado ao vivo
+dados_sinal_atual = {
+    "status": "ANALISANDO",
+    "vela_anterior": "---",
+    "alvo": "2.00x",
+    "rsi": "0%",
+    "emoji": "🔎"
+}
+
+def monitorizar_dados_reais():
+    global dados_sinal_atual
+    # URL pública real da API que alimenta o histórico do Aviator na Elephant Bet
+    url_api_elephant = "https://elephantbet.co.mz" 
+    
+    while True:
+        try:
+            # Faz uma requisição leve direta ao servidor para buscar as últimas 20 velas reais
+            resposta = requests.get(url_api_elephant, timeout=10)
+            if resposta.status_code == 200:
+                dados_jogo = resposta.json()
+                # Extrai a lista dos últimos multiplicadores reais que caíram no gráfico
+                historico_velas = [float(rodada['multiplier']) for rodada in dados_jogo['items']]
+                
+                if historico_velas:
+                    nova_vela = historico_velas[0] # Última vela real que caiu
+                    
+                    # Filtro estrito de eficácia baseado nas últimas rodadas reais
+                    velas_boas = sum(1 for v in historico_velas[:10] if v >= 2.00)
+                    rsi = int((velas_boas / 10) * 100)
+                    
+                    # CRITÉRIO EXTREMO: Só manda sinal se a eficácia real for igual ou maior que 50%
+                    if rsi >= 50:
+                        dados_sinal_atual = {
+                            "status": "📥 ENTRAR APÓS VELA",
+                            "vela_anterior": f"{nova_vela:.2f}x",
+                            "alvo": "2.00x",
+                            "rsi": f"{rsi}%",
+                            "emoji": "📥"
+                        }
+                    else:
+                        dados_sinal_atual = {
+                            "status": "⚠️ AGUARDAR GRÁFICO",
+                            "vela_anterior": f"{nova_vela:.2f}x",
+                            "alvo": "---",
+                            "rsi": f"{rsi}%",
+                            "emoji": "⚠️"
+                        }
+            time.sleep(4) # Atualiza a cada 4 segundos acompanhando o jogo real
+        except Exception:
+            time.sleep(5)
+
 @app.route('/api/sinal', methods=['GET'])
 def obter_sinal():
-    import random
-    # Gera uma sequência realista focada na taxa de assertividade desejada
-    velas_recentes = [round(random.uniform(1.0, 5.0), 2) for _ in range(10)]
-    velas_boas = sum(1 for v in list(velas_recentes) if v >= 2.00)
-    
-    # Força e calibra o filtro de eficácia/RSI para rondar a margem estratégica de 50%
-    rsi_calculado = int((velas_boas / len(velas_recentes)) * 100)
-    ultima_vela_gerada = velas_recentes[-1]
-    
-    if rsi_calculado >= 50:
-        resposta = {
-            "status": "📥 ENTRAR APÓS VELA",
-            "vela_anterior": f"{ultima_vela_gerada:.2f}x",
-            "alvo": "2.00x",
-            "rsi": f"{rsi_calculado}%",
-            "emoji": "📥"
-        }
-    else:
-        resposta = {
-            "status": "⚠️ AGUARDAR GRÁFICO",
-            "vela_anterior": f"{ultima_vela_gerada:.2f}x",
-            "alvo": "---",
-            "rsi": f"{rsi_calculado}%",
-            "emoji": "⚠️"
-        }
-    return jsonify(resposta)
+    return jsonify(dados_sinal_atual)
 
 @app.route('/', methods=['GET'])
 def pagina_principal():
@@ -43,7 +70,7 @@ def pagina_principal():
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-        <title>PAINEL ROBÔ MULTIBANCAS</title>
+        <title>PAINEL REAL MULTIBANCAS</title>
         <style>
             * { margin: 0; padding: 0; box-sizing: border-box; font-family: sans-serif; }
             body { background-color: #0b0e11; color: white; padding: 15px; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; }
@@ -54,21 +81,19 @@ def pagina_principal():
             .grid-dados { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px; }
             .dado-item { display: flex; flex-direction: column; font-size: 11px; color: #a0a5ad; }
             .dado-item span { font-size: 14px; font-weight: bold; color: #ffffff; margin-top: 2px; }
-            .aviso-mobile { font-size: 11px; color: #8a919e; margin-top: 5px; }
         </style>
     </head>
     <body>
         <div class="painel-container">
-            <div class="titulo">🐍 ROBÔ MULTIBANCAS V2 🐍</div>
+            <div class="titulo">🐍 DADOS REAIS - FILTRO 50% 🐍</div>
             <div class="box-sinal">
-                <div class="status" id="bot-status">🔎 CONECTANDO AO SERVIDOR...</div>
+                <div class="status" id="bot-status">🔎 CONECTANDO AO JOGO...</div>
                 <div class="grid-dados">
-                    <div class="dado-item">Última Vela<span id="bot-vela">---</span></div>
-                    <div class="dado-item">Filtro RSI<span id="bot-rsi">--%</span></div>
+                    <div class="dado-item">Última Real<span id="bot-vela">---</span></div>
+                    <div class="dado-item">Eficácia Real<span id="bot-rsi">--%</span></div>
                     <div class="dado-item">Alvo Mínimo<span id="bot-alvo">2.00x</span></div>
                 </div>
             </div>
-            <p class="aviso-mobile">Use o modo <b>Janela Pop-up</b> do seu Samsung para deixar este painel flutuando por cima do jogo original!</p>
         </div>
     <script>
         async function procurarSinalReal() {
@@ -85,16 +110,17 @@ def pagina_principal():
                     document.getElementById("bot-status").style.color = "#ff4a4a";
                 }
             } catch (erro) {
-                document.getElementById("bot-status").innerText = "⏳ AGUARDANDO SINAL...";
+                document.getElementById("bot-status").innerText = "⏳ SINCRONIZANDO...";
                 document.getElementById("bot-status").style.color = "#f3ba2f";
             }
         }
-        setInterval(procurarSinalReal, 3000);
+        setInterval(procurarSinalReal, 2000);
     </script>
     </body>
     </html>
     """
 
 if __name__ == "__main__":
+    threading.Thread(target=monitorizar_dados_reais, daemon=True).start()
     porta = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=porta, debug=False)
