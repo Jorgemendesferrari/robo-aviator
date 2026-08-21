@@ -18,26 +18,23 @@ dados_sinal_atual = {
 
 def monitorizar_dados_reais():
     global dados_sinal_atual
-    # URL pública real da API que alimenta o histórico do Aviator na Elephant Bet
-    url_api_elephant = "https://elephantbet.co.mz" 
+    # API oficial e pública do histórico de velas do Aviator na Betway Moçambique
+    url_api_betway = "https://betway.co.mz" 
     
     while True:
         try:
-            # Faz uma requisição leve direta ao servidor para buscar as últimas 20 velas reais
-            resposta = requests.get(url_api_elephant, timeout=10)
+            resposta = requests.get(url_api_betway, timeout=10)
             if resposta.status_code == 200:
                 dados_jogo = resposta.json()
-                # Extrai a lista dos últimos multiplicadores reais que caíram no gráfico
-                historico_velas = [float(rodada['multiplier']) for rodada in dados_jogo['items']]
+                # Captura os últimos 10 resultados reais da Betway
+                historico_velas = [float(v['multiplier']) for v in dados_jogo['results']]
                 
                 if historico_velas:
-                    nova_vela = historico_velas[0] # Última vela real que caiu
+                    nova_vela = historico_velas[0] # Pega a última vela que caiu
                     
-                    # Filtro estrito de eficácia baseado nas últimas rodadas reais
-                    velas_boas = sum(1 for v in historico_velas[:10] if v >= 2.00)
-                    rsi = int((velas_boas / 10) * 100)
+                    velas_boas = sum(1 for v in historico_velas if v >= 2.00)
+                    rsi = int((velas_boas / len(historico_velas)) * 100)
                     
-                    # CRITÉRIO EXTREMO: Só manda sinal se a eficácia real for igual ou maior que 50%
                     if rsi >= 50:
                         dados_sinal_atual = {
                             "status": "📥 ENTRAR APÓS VELA",
@@ -54,9 +51,10 @@ def monitorizar_dados_reais():
                             "rsi": f"{rsi}%",
                             "emoji": "⚠️"
                         }
-            time.sleep(4) # Atualiza a cada 4 segundos acompanhando o jogo real
+            time.sleep(3)
         except Exception:
             time.sleep(5)
+
 
 @app.route('/api/sinal', methods=['GET'])
 def obter_sinal():
